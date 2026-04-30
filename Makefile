@@ -49,3 +49,48 @@ docs-build: docs-gen-sdk docs-gen-llms
 
 docs: docs-build
 	@echo "=== docs: built into docs/site/public/ ==="
+
+# CI mirror — must match .github/workflows/test.yml verbatim across all jobs.
+# Note: GOWORK=off is critical; the existing test/test-drivers/test-otel
+# targets do NOT use it but CI does, leading to historical drift. These
+# ci-* targets are the single source of truth going forward.
+.PHONY: ci ci-default ci-ncruces ci-otel-target
+
+ci: ci-default ci-ncruces ci-otel-target
+
+ci-default:
+	GOWORK=off go test $$(GOWORK=off go list ./... | grep -v '/dst') -count=1 -timeout=120s
+	GOWORK=off go test ./dst/... -count=1 -timeout=300s
+	cd db/driver/modernc && GOWORK=off go test ./... -count=1
+	GOWORK=off go vet ./...
+	GOWORK=off go build ./cmd/libfossil/
+
+ci-ncruces:
+	GOWORK=off go test -tags test_ncruces $$(GOWORK=off go list ./... | grep -v '/dst' | grep -v 'cmd/libfossil') -count=1 -timeout=120s
+	GOWORK=off go test -tags test_ncruces ./dst/... -count=1 -timeout=300s
+	cd db/driver/ncruces && GOWORK=off go test ./... -count=1
+
+ci-otel-target:
+	cd observer/otel && GOWORK=off go test ./... -count=1
+
+.PHONY: release
+release:
+	@test -n "$(VERSION)" || { echo "VERSION=vX.Y.Z required"; exit 1; }
+	@echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$$' || { echo "bad version format: $(VERSION)"; exit 1; }
+	@git diff --quiet || { echo "tree dirty; commit or stash first"; exit 1; }
+	@git fetch origin --tags
+	@if git rev-parse "$(VERSION)" >/dev/null 2>&1; then echo "tag $(VERSION) already exists"; exit 1; fi
+	@$(MAKE) ci
+	@PREV=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
+	  TMPL=.github/RELEASE_TEMPLATE.md; \
+	  TMP=$$(mktemp); \
+	  { echo "Release $(VERSION)"; echo; \
+	    [ -f $$TMPL ] && { cat $$TMPL; echo; }; \
+	    echo "## Changes"; \
+	    if [ -n "$$PREV" ]; then git log --oneline $$PREV..HEAD; else git log --oneline; fi; } > $$TMP; \
+	  $${EDITOR:-vi} $$TMP; \
+	  git tag -a "$(VERSION)" -F $$TMP; \
+	  rm $$TMP
+	@echo ""
+	@echo "Tag $(VERSION) created locally. To publish:"
+	@echo "  git push origin $(VERSION)"
