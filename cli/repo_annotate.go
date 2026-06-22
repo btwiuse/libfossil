@@ -11,6 +11,7 @@ func newAnnotateCommand() *cobra.Command {
 	var version string
 	cmd := &cobra.Command{
 		Use:   "annotate <file>",
+		Aliases: []string{"blame"},
 		Short: "Annotate file lines with version history",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -50,5 +51,9 @@ func newAnnotateCommand() *cobra.Command {
 }
 
 func newBlameCommand() *cobra.Command {
-	return newAnnotateCommand()
+	cmd := newAnnotateCommand()
+	cmd.Use = "blame <file>"
+	cmd.Short = "Alias for annotate"
+	cmd.Aliases = nil
+	return cmd
 }
