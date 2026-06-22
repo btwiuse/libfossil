@@ -8,8 +8,7 @@ import (
 
 type CLI struct {
 	cli.Globals
-
-	Repo cli.RepoCmd `cmd:"" help:"Repository operations"`
+	cli.RepoCmd
 }
 
 func main() {
