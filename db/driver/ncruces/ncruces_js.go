@@ -8,6 +8,7 @@ import (
 
 	"github.com/danmestas/libfossil/db"
 	_ "github.com/danmestas/go-sqlite3-opfs"
+	_ "github.com/justwasm/sqlite3-vfs-idb"
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
@@ -23,7 +24,7 @@ func buildDSN(path string, pragmas map[string]string) string {
 		panic("ncruces.buildDSN: path must not be empty")
 	}
 	var parts []string
-	parts = append(parts, "vfs=opfs")
+	parts = append(parts, "vfs=idb")
 	for k, v := range pragmas {
 		parts = append(parts, fmt.Sprintf("_pragma=%s(%s)", k, v))
 	}
