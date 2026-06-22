@@ -110,7 +110,7 @@ func TestServerCommandSupportsPush(t *testing.T) {
 	}()
 
 	clientPath := filepath.Join(t.TempDir(), "client.fossil")
-	clientRepo, _, err := libfossil.Clone(
+	clientRepo, cloneResult, err := libfossil.Clone(
 		context.Background(),
 		clientPath,
 		libfossil.NewHTTPTransport(fmt.Sprintf("http://%s", addr)),
@@ -140,7 +140,13 @@ func TestServerCommandSupportsPush(t *testing.T) {
 	res, err := clientRepo.Sync(
 		context.Background(),
 		libfossil.NewHTTPTransport(fmt.Sprintf("http://%s", addr)),
-		libfossil.SyncOpts{Push: true, User: "alice", Password: "secret"},
+		libfossil.SyncOpts{
+			Push:        true,
+			ProjectCode: cloneResult.ProjectCode,
+			ServerCode:  cloneResult.ServerCode,
+			User:        "alice",
+			Password:    "secret",
+		},
 	)
 	if err != nil {
 		t.Fatalf("Sync(push): %v", err)
