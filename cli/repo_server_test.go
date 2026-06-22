@@ -23,7 +23,7 @@ func TestServerCommandSupportsClone(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 	if _, _, err := serverRepo.Commit(libfossil.CommitOpts{
-		Files: []libfossil.FileToCommit{{Name: "hello.txt", Content: []byte("hello\n")}},
+		Files:   []libfossil.FileToCommit{{Name: "hello.txt", Content: []byte("hello\n")}},
 		Comment: "initial",
 		User:    "admin",
 	}); err != nil {
@@ -83,7 +83,7 @@ func TestServerCommandSupportsPush(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 	if _, _, err := serverRepo.Commit(libfossil.CommitOpts{
-		Files: []libfossil.FileToCommit{{Name: "base.txt", Content: []byte("base\n")}},
+		Files:   []libfossil.FileToCommit{{Name: "base.txt", Content: []byte("base\n")}},
 		Comment: "initial",
 		User:    "admin",
 	}); err != nil {
