@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/alecthomas/kong"
 	"github.com/danmestas/libfossil/cli"
-	_ "github.com/danmestas/libfossil/db/driver/ncruces"
+	_ "github.com/btwiuse/libfossil/db/driver/ncruces"
 )
 
 type CLI struct {
