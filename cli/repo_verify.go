@@ -1,20 +1,29 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-// RepoVerifyCmd verifies repository integrity.
-type RepoVerifyCmd struct{}
+	"github.com/spf13/cobra"
+)
 
-func (c *RepoVerifyCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newVerifyCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Verify repository integrity",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			if err := r.Verify(); err != nil {
+				return fmt.Errorf("verification failed: %w", err)
+			}
+			fmt.Println("repository integrity verified")
+			return nil
+		},
 	}
-	defer r.Close()
-
-	if err := r.Verify(); err != nil {
-		return fmt.Errorf("verification failed: %w", err)
-	}
-	fmt.Println("repository integrity verified")
-	return nil
+	return cmd
 }

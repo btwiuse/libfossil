@@ -4,125 +4,147 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
-// RepoUVCmd groups unversioned file operations.
-type RepoUVCmd struct {
-	Ls     RepoUVLsCmd     `cmd:"" help:"List unversioned files"`
-	Put    RepoUVPutCmd    `cmd:"" help:"Add or update an unversioned file"`
-	Get    RepoUVGetCmd    `cmd:"" help:"Retrieve an unversioned file"`
-	Delete RepoUVDeleteCmd `cmd:"" help:"Delete an unversioned file (creates tombstone)"`
+func newUVCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uv",
+		Short: "Unversioned file operations",
+	}
+	cmd.AddCommand(newUVLsCommand())
+	cmd.AddCommand(newUVPutCommand())
+	cmd.AddCommand(newUVGetCommand())
+	cmd.AddCommand(newUVDeleteCommand())
+	return cmd
 }
 
-// RepoUVLsCmd lists unversioned files.
-type RepoUVLsCmd struct{}
-
-func (c *RepoUVLsCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	entries, err := r.UVList()
-	if err != nil {
-		return err
-	}
-
-	if len(entries) == 0 {
-		fmt.Println("(no unversioned files)")
-		return nil
-	}
-
-	for _, e := range entries {
-		ts := e.Mtime.UTC().Format("2006-01-02 15:04:05")
-		if e.Hash == "" {
-			fmt.Printf("%-40s %s  [deleted]\n", e.Name, ts)
-		} else {
-			hash := e.Hash
-			if len(hash) > 10 {
-				hash = hash[:10]
+func newUVLsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ls",
+		Short: "List unversioned files",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
 			}
-			fmt.Printf("%-40s %s  %6d  %s\n", e.Name, ts, e.Size, hash)
-		}
+			defer r.Close()
+
+			entries, err := r.UVList()
+			if err != nil {
+				return err
+			}
+
+			if len(entries) == 0 {
+				fmt.Println("(no unversioned files)")
+				return nil
+			}
+
+			for _, e := range entries {
+				ts := e.Mtime.UTC().Format("2006-01-02 15:04:05")
+				if e.Hash == "" {
+					fmt.Printf("%-40s %s  [deleted]\n", e.Name, ts)
+				} else {
+					hash := e.Hash
+					if len(hash) > 10 {
+						hash = hash[:10]
+					}
+					fmt.Printf("%-40s %s  %6d  %s\n", e.Name, ts, e.Size, hash)
+				}
+			}
+			return nil
+		},
 	}
-	return nil
+	return cmd
 }
 
-// RepoUVPutCmd adds or updates an unversioned file.
-type RepoUVPutCmd struct {
-	Name string `arg:"" help:"Name of the unversioned file"`
-	File string `arg:"" help:"Local file to upload"`
+func newUVPutCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "put <name> <file>",
+		Short: "Add or update an unversioned file",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			name, file := args[0], args[1]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			data, err := os.ReadFile(file)
+			if err != nil {
+				return fmt.Errorf("read %s: %w", file, err)
+			}
+
+			if err := r.UVWrite(name, data, time.Now()); err != nil {
+				return err
+			}
+
+			fmt.Printf("wrote %s (%d bytes)\n", name, len(data))
+			return nil
+		},
+	}
+	return cmd
 }
 
-func (c *RepoUVPutCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+func newUVGetCommand() *cobra.Command {
+	var output string
+	cmd := &cobra.Command{
+		Use:   "get <name>",
+		Short: "Retrieve an unversioned file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			name := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-	data, err := os.ReadFile(c.File)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", c.File, err)
-	}
+			data, _, hash, err := r.UVRead(name)
+			if err != nil {
+				return err
+			}
+			if data == nil && hash == "" {
+				return fmt.Errorf("unversioned file %q not found", name)
+			}
+			if hash == "" {
+				return fmt.Errorf("unversioned file %q has been deleted", name)
+			}
 
-	if err := r.UVWrite(c.Name, data, time.Now()); err != nil {
-		return err
+			if output != "" {
+				return os.WriteFile(output, data, 0o644)
+			}
+			_, err = os.Stdout.Write(data)
+			return err
+		},
 	}
-
-	fmt.Printf("wrote %s (%d bytes)\n", c.Name, len(data))
-	return nil
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file (default: stdout)")
+	return cmd
 }
 
-// RepoUVGetCmd retrieves an unversioned file.
-type RepoUVGetCmd struct {
-	Name   string `arg:"" help:"Name of the unversioned file"`
-	Output string `short:"o" help:"Output file (default: stdout)"`
-}
+func newUVDeleteCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete <name>",
+		Short: "Delete an unversioned file (creates tombstone)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			name := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-func (c *RepoUVGetCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+			if err := r.UVWrite(name, nil, time.Now()); err != nil {
+				return err
+			}
 
-	data, _, hash, err := r.UVRead(c.Name)
-	if err != nil {
-		return err
+			fmt.Printf("deleted %s\n", name)
+			return nil
+		},
 	}
-	if data == nil && hash == "" {
-		return fmt.Errorf("unversioned file %q not found", c.Name)
-	}
-	if hash == "" {
-		return fmt.Errorf("unversioned file %q has been deleted", c.Name)
-	}
-
-	if c.Output != "" {
-		return os.WriteFile(c.Output, data, 0o644)
-	}
-	_, err = os.Stdout.Write(data)
-	return err
-}
-
-// RepoUVDeleteCmd deletes an unversioned file (creates a tombstone).
-type RepoUVDeleteCmd struct {
-	Name string `arg:"" help:"Name of the unversioned file to delete"`
-}
-
-func (c *RepoUVDeleteCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	// UV delete is done by writing a zero-length entry.
-	if err := r.UVWrite(c.Name, nil, time.Now()); err != nil {
-		return err
-	}
-
-	fmt.Printf("deleted %s\n", c.Name)
-	return nil
+	return cmd
 }

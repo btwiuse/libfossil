@@ -22,8 +22,8 @@ func TestGlobalsOpenRepo(t *testing.T) {
 	}
 	r.Close()
 
-	g := &cli.Globals{Repo: repoPath}
-	opened, err := g.OpenRepo()
+	cli.Repo = repoPath
+	opened, err := cli.OpenRepo()
 	if err != nil {
 		t.Fatalf("OpenRepo: %v", err)
 	}
@@ -35,8 +35,8 @@ func TestGlobalsOpenRepo(t *testing.T) {
 }
 
 func TestGlobalsOpenRepoNotFound(t *testing.T) {
-	g := &cli.Globals{Repo: "/nonexistent/repo.fossil"}
-	_, err := g.OpenRepo()
+	cli.Repo = "/nonexistent/repo.fossil"
+	_, err := cli.OpenRepo()
 	if err == nil {
 		t.Fatal("expected error for nonexistent repo")
 	}
@@ -57,13 +57,14 @@ func TestGlobalsOpenRepoAutoFind(t *testing.T) {
 	defer os.Chdir(orig)
 	os.Chdir(tmp)
 
-	g := &cli.Globals{}
-	opened, err := g.OpenRepo()
+	cli.Repo = ""
+	opened, err := cli.OpenRepo()
 	if err != nil {
 		t.Fatalf("OpenRepo auto-find: %v", err)
 	}
 	defer opened.Close()
 }
+
 func TestRepoCiPreservesNestedRelativePaths(t *testing.T) {
 	tmp := t.TempDir()
 	repoPath := filepath.Join(tmp, "nested.fossil")
@@ -89,13 +90,11 @@ func TestRepoCiPreservesNestedRelativePaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := &cli.RepoCiCmd{
-		Message: "initial nested",
-		Files:   []string{filepath.Join("src", "app.txt")},
-		User:    "test",
-	}
-	if err := cmd.Run(&cli.Globals{Repo: repoPath}); err != nil {
-		t.Fatalf("RepoCiCmd.Run: %v", err)
+	cmd := cli.NewCiCommand()
+	cli.Repo = repoPath
+	cmd.SetArgs([]string{"-m", "initial nested", "--user", "test", filepath.Join("src", "app.txt")})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("ci command: %v", err)
 	}
 
 	opened, err := libfossil.Open(repoPath)
@@ -136,9 +135,11 @@ func TestRepoOpenPopulatesVFileFromTip(t *testing.T) {
 	r.Close()
 
 	checkoutDir := filepath.Join(tmp, "checkout")
-	cmd := &cli.RepoOpenCmd{Dir: checkoutDir}
-	if err := cmd.Run(&cli.Globals{Repo: repoPath}); err != nil {
-		t.Fatalf("RepoOpenCmd.Run: %v", err)
+	cmd := cli.NewOpenCommand()
+	cli.Repo = repoPath
+	cmd.SetArgs([]string{checkoutDir})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("open command: %v", err)
 	}
 
 	ckdb, err := libdb.OpenSQL(filepath.Join(checkoutDir, ".fslckout"), libdb.OpenConfig{}, nil)
@@ -178,12 +179,10 @@ func TestRepoCiRejectsOutsideCurrentDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := &cli.RepoCiCmd{
-		Message: "outside",
-		Files:   []string{filepath.Join("..", "outside.txt")},
-		User:    "test",
-	}
-	if err := cmd.Run(&cli.Globals{Repo: repoPath}); err == nil {
-		t.Fatal("RepoCiCmd.Run accepted path outside current directory")
+	cmd := cli.NewCiCommand()
+	cli.Repo = repoPath
+	cmd.SetArgs([]string{"-m", "outside", "--user", "test", filepath.Join("..", "outside.txt")})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("ci command accepted path outside current directory")
 	}
 }

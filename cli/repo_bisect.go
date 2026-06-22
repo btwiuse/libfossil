@@ -1,80 +1,120 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-// RepoBisectCmd groups binary search operations.
-type RepoBisectCmd struct {
-	Good   RepoBisectGoodCmd   `cmd:"" help:"Mark version as good"`
-	Bad    RepoBisectBadCmd    `cmd:"" help:"Mark version as bad"`
-	Next   RepoBisectNextCmd   `cmd:"" help:"Check out midpoint version"`
-	Skip   RepoBisectSkipCmd   `cmd:"" help:"Skip current version"`
-	Reset  RepoBisectResetCmd  `cmd:"" help:"Clear bisect state"`
-	Ls     RepoBisectLsCmd     `cmd:"" help:"Show bisect path"`
-	Status RepoBisectStatusCmd `cmd:"" help:"Show bisect state"`
+	"github.com/spf13/cobra"
+)
+
+func newBisectCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "bisect",
+		Short: "Binary search for bugs",
+	}
+	cmd.AddCommand(newBisectGoodCommand())
+	cmd.AddCommand(newBisectBadCommand())
+	cmd.AddCommand(newBisectSkipCommand())
+	cmd.AddCommand(newBisectNextCommand())
+	cmd.AddCommand(newBisectResetCommand())
+	cmd.AddCommand(newBisectLsCommand())
+	cmd.AddCommand(newBisectStatusCommand())
+	return cmd
 }
 
-// RepoBisectGoodCmd marks a version as good.
-type RepoBisectGoodCmd struct {
-	Version string `arg:"" optional:"" help:"Version to mark (default: current checkout)"`
-	Dir     string `short:"d" help:"Checkout directory" default:"."`
+func newBisectGoodCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "good [version]",
+		Short: "Mark version as good",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-func (c *RepoBisectGoodCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+func newBisectBadCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "bad [version]",
+		Short: "Mark version as bad",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-// RepoBisectBadCmd marks a version as bad.
-type RepoBisectBadCmd struct {
-	Version string `arg:"" optional:"" help:"Version to mark (default: current checkout)"`
-	Dir     string `short:"d" help:"Checkout directory" default:"."`
+func newBisectSkipCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "skip [version]",
+		Short: "Skip current version",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-func (c *RepoBisectBadCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+func newBisectNextCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "next",
+		Short: "Check out midpoint version",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-// RepoBisectSkipCmd skips the current version.
-type RepoBisectSkipCmd struct {
-	Version string `arg:"" optional:"" help:"Version to skip (default: current checkout)"`
-	Dir     string `short:"d" help:"Checkout directory" default:"."`
+func newBisectResetCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Clear bisect state",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-func (c *RepoBisectSkipCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+func newBisectLsCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "ls",
+		Short: "Show bisect path",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-// RepoBisectNextCmd checks out the bisect midpoint version.
-type RepoBisectNextCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoBisectNextCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
-}
-
-// RepoBisectResetCmd clears bisect state.
-type RepoBisectResetCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoBisectResetCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
-}
-
-// RepoBisectLsCmd shows the bisect path.
-type RepoBisectLsCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoBisectLsCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
-}
-
-// RepoBisectStatusCmd shows bisect state.
-type RepoBisectStatusCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoBisectStatusCmd) Run(g *Globals) error {
-	return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+func newBisectStatusCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show bisect state",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fmt.Errorf("bisect: not yet implemented (requires checkout DB)")
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }

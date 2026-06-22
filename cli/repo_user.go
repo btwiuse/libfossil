@@ -6,129 +6,159 @@ import (
 	"fmt"
 
 	libfossil "github.com/danmestas/libfossil"
+	"github.com/spf13/cobra"
 )
 
-// RepoUserCmd groups user management operations.
-type RepoUserCmd struct {
-	Add    UserAddCmd    `cmd:"" help:"Create a new user"`
-	List   UserListCmd   `cmd:"" help:"List all users"`
-	Update UserUpdateCmd `cmd:"" help:"Update user capabilities"`
-	Rm     UserRmCmd     `cmd:"" help:"Delete a user"`
-	Passwd UserPasswdCmd `cmd:"" help:"Reset user password"`
+func newUserCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "user",
+		Short: "User management",
+	}
+	cmd.AddCommand(newUserAddCommand())
+	cmd.AddCommand(newUserListCommand())
+	cmd.AddCommand(newUserUpdateCommand())
+	cmd.AddCommand(newUserRmCommand())
+	cmd.AddCommand(newUserPasswdCommand())
+	return cmd
 }
 
-// UserAddCmd creates a new user.
-type UserAddCmd struct {
-	Login string `arg:"" help:"Username"`
-	Cap   string `help:"Capability string (e.g. oi)" required:""`
+func newUserAddCommand() *cobra.Command {
+	var cap string
+	cmd := &cobra.Command{
+		Use:   "add <login>",
+		Short: "Create a new user",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			login := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			password, err := generatePassword()
+			if err != nil {
+				return err
+			}
+
+			if err := r.CreateUser(libfossil.UserOpts{
+				Login:    login,
+				Password: password,
+				Caps:     cap,
+			}); err != nil {
+				return err
+			}
+			fmt.Printf("Created user %q (caps: %s)\n", login, cap)
+			fmt.Printf("Password: %s\n", password)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&cap, "cap", "", "Capability string (e.g. oi)")
+	cmd.MarkFlagRequired("cap")
+	return cmd
 }
 
-func (c *UserAddCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+func newUserListCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all users",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-	password, err := generatePassword()
-	if err != nil {
-		return err
+			users, err := r.ListUsers()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%-20s %-20s\n", "LOGIN", "CAPABILITIES")
+			for _, u := range users {
+				fmt.Printf("%-20s %-20s\n", u.Login, u.Caps)
+			}
+			return nil
+		},
 	}
-
-	if err := r.CreateUser(libfossil.UserOpts{
-		Login:    c.Login,
-		Password: password,
-		Caps:     c.Cap,
-	}); err != nil {
-		return err
-	}
-	fmt.Printf("Created user %q (caps: %s)\n", c.Login, c.Cap)
-	fmt.Printf("Password: %s\n", password)
-	return nil
+	return cmd
 }
 
-// UserListCmd lists all users.
-type UserListCmd struct{}
+func newUserUpdateCommand() *cobra.Command {
+	var cap string
+	cmd := &cobra.Command{
+		Use:   "update <login>",
+		Short: "Update user capabilities",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			login := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-func (c *UserListCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+			if err := r.SetCaps(login, cap); err != nil {
+				return err
+			}
+			fmt.Printf("Updated %q capabilities: %s\n", login, cap)
+			return nil
+		},
 	}
-	defer r.Close()
-
-	users, err := r.ListUsers()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%-20s %-20s\n", "LOGIN", "CAPABILITIES")
-	for _, u := range users {
-		fmt.Printf("%-20s %-20s\n", u.Login, u.Caps)
-	}
-	return nil
+	cmd.Flags().StringVar(&cap, "cap", "", "New capability string")
+	cmd.MarkFlagRequired("cap")
+	return cmd
 }
 
-// UserUpdateCmd updates user capabilities.
-type UserUpdateCmd struct {
-	Login string `arg:"" help:"Username"`
-	Cap   string `help:"New capability string" required:""`
+func newUserRmCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rm <login>",
+		Short: "Delete a user",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			login := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			if err := r.DeleteUser(login); err != nil {
+				return err
+			}
+			fmt.Printf("Deleted user %q\n", login)
+			return nil
+		},
+	}
+	return cmd
 }
 
-func (c *UserUpdateCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newUserPasswdCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "passwd <login>",
+		Short: "Reset user password",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			login := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			password, err := generatePassword()
+			if err != nil {
+				return err
+			}
+
+			if err := r.SetPassword(login, password); err != nil {
+				return err
+			}
+			fmt.Printf("New password for %q: %s\n", login, password)
+			return nil
+		},
 	}
-	defer r.Close()
-
-	if err := r.SetCaps(c.Login, c.Cap); err != nil {
-		return err
-	}
-	fmt.Printf("Updated %q capabilities: %s\n", c.Login, c.Cap)
-	return nil
-}
-
-// UserRmCmd deletes a user.
-type UserRmCmd struct {
-	Login string `arg:"" help:"Username"`
-}
-
-func (c *UserRmCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	if err := r.DeleteUser(c.Login); err != nil {
-		return err
-	}
-	fmt.Printf("Deleted user %q\n", c.Login)
-	return nil
-}
-
-// UserPasswdCmd resets a user's password.
-type UserPasswdCmd struct {
-	Login string `arg:"" help:"Username"`
-}
-
-func (c *UserPasswdCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	password, err := generatePassword()
-	if err != nil {
-		return err
-	}
-
-	if err := r.SetPassword(c.Login, password); err != nil {
-		return err
-	}
-	fmt.Printf("New password for %q: %s\n", c.Login, password)
-	return nil
+	return cmd
 }
 
 func generatePassword() (string, error) {

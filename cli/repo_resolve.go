@@ -1,28 +1,36 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-// RepoResolveCmd resolves a symbolic name to UUID and RID.
-type RepoResolveCmd struct {
-	Name string `arg:"" help:"Symbolic name, UUID, or prefix to resolve (e.g. trunk, tip, UUID prefix)"`
-}
+	"github.com/spf13/cobra"
+)
 
-func (c *RepoResolveCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newResolveCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "resolve <name>",
+		Short: "Resolve symbolic name to UUID",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			name := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			rid, err := resolveRID(r, name)
+			if err != nil {
+				return err
+			}
+
+			var uuid string
+			r.Inner().DB().QueryRow("SELECT uuid FROM blob WHERE rid=?", rid).Scan(&uuid)
+
+			fmt.Printf("rid:  %d\n", rid)
+			fmt.Printf("uuid: %s\n", uuid)
+			return nil
+		},
 	}
-	defer r.Close()
-
-	rid, err := resolveRID(r, c.Name)
-	if err != nil {
-		return err
-	}
-
-	var uuid string
-	r.Inner().DB().QueryRow("SELECT uuid FROM blob WHERE rid=?", rid).Scan(&uuid)
-
-	fmt.Printf("rid:  %d\n", rid)
-	fmt.Printf("uuid: %s\n", uuid)
-	return nil
+	return cmd
 }

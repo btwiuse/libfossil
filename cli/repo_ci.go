@@ -8,88 +8,95 @@ import (
 	"time"
 
 	libfossil "github.com/danmestas/libfossil"
+	"github.com/spf13/cobra"
 )
 
-// RepoCiCmd creates a new checkin (commit).
-type RepoCiCmd struct {
-	Message string   `short:"m" required:"" help:"Checkin comment"`
-	Files   []string `arg:"" required:"" help:"Files to checkin"`
-	User    string   `help:"Checkin user (default: OS username)"`
-	Parent  string   `help:"Parent version UUID (default: tip)"`
-	Branch  string   `help:"Branch name for this checkin"`
-}
+func NewCiCommand() *cobra.Command {
+	var message, user, parent, branch string
+	cmd := &cobra.Command{
+		Use:   "ci <files...>",
+		Short: "Checkin file changes",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			files := args
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-func (c *RepoCiCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+			var parentRid int64
+			if parent != "" {
+				parentRid, err = resolveRID(r, parent)
+				if err != nil {
+					return fmt.Errorf("resolving parent: %w", err)
+				}
+			} else {
+				parentRid, _ = resolveRID(r, "")
+			}
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+
+			commitFiles := make([]libfossil.FileToCommit, len(files))
+			for i, path := range files {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("reading %s: %w", path, err)
+				}
+				absPath, err := filepath.Abs(path)
+				if err != nil {
+					return fmt.Errorf("resolving %s: %w", path, err)
+				}
+				name, err := filepath.Rel(cwd, absPath)
+				if err != nil {
+					return fmt.Errorf("resolving %s: %w", path, err)
+				}
+				name = filepath.Clean(name)
+				if name == "." || name == ".." || strings.HasPrefix(name, ".."+string(filepath.Separator)) {
+					return fmt.Errorf("%s is outside current directory", path)
+				}
+				commitFiles[i] = libfossil.FileToCommit{
+					Name:    filepath.ToSlash(name),
+					Content: data,
+				}
+			}
+
+			u := user
+			if u == "" {
+				u = currentUser()
+			}
+
+			var tags []libfossil.TagSpec
+			if branch != "" {
+				tags = append(tags,
+					libfossil.TagSpec{Name: "branch", Value: branch},
+					libfossil.TagSpec{Name: "sym-" + branch},
+				)
+			}
+
+			rid, uuid, err := r.Commit(libfossil.CommitOpts{
+				Files:    commitFiles,
+				Comment:  message,
+				User:     u,
+				ParentID: parentRid,
+				Time:     time.Now().UTC(),
+				Tags:     tags,
+			})
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("checkin %s (rid=%d)\n", uuid[:10], rid)
+			return nil
+		},
 	}
-	defer r.Close()
-
-	var parentRid int64
-	if c.Parent != "" {
-		parentRid, err = resolveRID(r, c.Parent)
-		if err != nil {
-			return fmt.Errorf("resolving parent: %w", err)
-		}
-	} else {
-		parentRid, _ = resolveRID(r, "") // ignore error for initial checkin
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	files := make([]libfossil.FileToCommit, len(c.Files))
-	for i, path := range c.Files {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("reading %s: %w", path, err)
-		}
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("resolving %s: %w", path, err)
-		}
-		name, err := filepath.Rel(cwd, absPath)
-		if err != nil {
-			return fmt.Errorf("resolving %s: %w", path, err)
-		}
-		name = filepath.Clean(name)
-		if name == "." || name == ".." || strings.HasPrefix(name, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("%s is outside current directory", path)
-		}
-		files[i] = libfossil.FileToCommit{
-			Name:    filepath.ToSlash(name),
-			Content: data,
-		}
-	}
-
-	user := c.User
-	if user == "" {
-		user = currentUser()
-	}
-
-	var tags []libfossil.TagSpec
-	if c.Branch != "" {
-		tags = append(tags,
-			libfossil.TagSpec{Name: "branch", Value: c.Branch},
-			libfossil.TagSpec{Name: "sym-" + c.Branch},
-		)
-	}
-
-	rid, uuid, err := r.Commit(libfossil.CommitOpts{
-		Files:    files,
-		Comment:  c.Message,
-		User:     user,
-		ParentID: parentRid,
-		Time:     time.Now().UTC(),
-		Tags:     tags,
-	})
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("checkin %s (rid=%d)\n", uuid[:10], rid)
-	return nil
+	cmd.Flags().StringVarP(&message, "message", "m", "", "Checkin comment")
+	cmd.Flags().StringVar(&user, "user", "", "Checkin user (default: OS username)")
+	cmd.Flags().StringVar(&parent, "parent", "", "Parent version UUID (default: tip)")
+	cmd.Flags().StringVar(&branch, "branch", "", "Branch name for this checkin")
+	cmd.MarkFlagRequired("message")
+	return cmd
 }

@@ -10,73 +10,83 @@ import (
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
+	"github.com/spf13/cobra"
 )
 
-// RepoDiffCmd shows changes in the working directory vs a repository version.
-type RepoDiffCmd struct {
-	Version string `arg:"" optional:"" help:"Version to diff against (default: tip)"`
-	Dir     string `short:"d" help:"Working directory to compare" default:"."`
-	Unified int    `short:"U" help:"Lines of context" default:"3"`
-}
-
-func (c *RepoDiffCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	rid, err := resolveRID(r, c.Version)
-	if err != nil {
-		return err
-	}
-
-	files, err := r.ListFiles(rid)
-	if err != nil {
-		return err
-	}
-
-	db := r.Inner().DB()
-	hasDiff := false
-
-	for _, f := range files {
-		diskPath := filepath.Join(c.Dir, f.Name)
-		diskData, err := os.ReadFile(diskPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Printf("--- a/%s\n+++ /dev/null\n@@ deleted @@\n", f.Name)
-				hasDiff = true
-				continue
+func newDiffCommand() *cobra.Command {
+	var version, dir string
+	var unified int
+	cmd := &cobra.Command{
+		Use:   "diff [version]",
+		Short: "Show changes vs a version",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			v := version
+			if len(args) > 0 {
+				v = args[0]
 			}
-			return err
-		}
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-		fileRid, ok := blob.Exists(db, f.UUID)
-		if !ok {
-			return fmt.Errorf("blob %s not found for %s", f.UUID, f.Name)
-		}
-		repoContent, err := content.Expand(db, fileRid)
-		if err != nil {
-			return fmt.Errorf("%s: %w", f.Name, err)
-		}
+			rid, err := resolveRID(r, v)
+			if err != nil {
+				return err
+			}
 
-		repoStr := string(repoContent)
-		diskStr := string(diskData)
+			files, err := r.ListFiles(rid)
+			if err != nil {
+				return err
+			}
 
-		if repoStr == diskStr {
-			continue
-		}
+			db := r.Inner().DB()
+			hasDiff := false
 
-		edits := myers.ComputeEdits(span.URIFromPath(f.Name), repoStr, diskStr)
-		diff := fmt.Sprint(gotextdiff.ToUnified("a/"+f.Name, "b/"+f.Name, repoStr, edits))
-		if diff != "" {
-			fmt.Print(diff)
-			hasDiff = true
-		}
+			for _, f := range files {
+				diskPath := filepath.Join(dir, f.Name)
+				diskData, err := os.ReadFile(diskPath)
+				if err != nil {
+					if os.IsNotExist(err) {
+						fmt.Printf("--- a/%s\n+++ /dev/null\n@@ deleted @@\n", f.Name)
+						hasDiff = true
+						continue
+					}
+					return err
+				}
+
+				fileRid, ok := blob.Exists(db, f.UUID)
+				if !ok {
+					return fmt.Errorf("blob %s not found for %s", f.UUID, f.Name)
+				}
+				repoContent, err := content.Expand(db, fileRid)
+				if err != nil {
+					return fmt.Errorf("%s: %w", f.Name, err)
+				}
+
+				repoStr := string(repoContent)
+				diskStr := string(diskData)
+
+				if repoStr == diskStr {
+					continue
+				}
+
+				edits := myers.ComputeEdits(span.URIFromPath(f.Name), repoStr, diskStr)
+				diff := fmt.Sprint(gotextdiff.ToUnified("a/"+f.Name, "b/"+f.Name, repoStr, edits))
+				if diff != "" {
+					fmt.Print(diff)
+					hasDiff = true
+				}
+			}
+
+			if !hasDiff {
+				fmt.Println("no changes")
+			}
+			return nil
+		},
 	}
-
-	if !hasDiff {
-		fmt.Println("no changes")
-	}
-	return nil
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Working directory to compare")
+	cmd.Flags().IntVarP(&unified, "unified", "U", 3, "Lines of context")
+	return cmd
 }

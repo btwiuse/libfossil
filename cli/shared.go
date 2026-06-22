@@ -12,23 +12,23 @@ import (
 	libfossil "github.com/danmestas/libfossil"
 )
 
-// Globals holds flags shared by all CLI commands.
-type Globals struct {
-	Repo    string `short:"R" help:"Path to repository file" type:"path"`
-	Verbose bool   `short:"v" help:"Verbose output"`
-}
+// Package-level vars bound to cobra persistent flags.
+var (
+	Repo    string
+	Verbose bool
+)
 
 // OpenRepo opens a Fossil repository using the handle API.
 // If Repo is empty, it searches for a .fossil file or .fslckout checkout.
-func (g *Globals) OpenRepo() (*libfossil.Repo, error) {
-	if g.Repo == "" {
+func OpenRepo() (*libfossil.Repo, error) {
+	if Repo == "" {
 		found, err := findRepo()
 		if err != nil {
 			return nil, fmt.Errorf("no repository specified (use -R <path>)")
 		}
-		g.Repo = found
+		Repo = found
 	}
-	return libfossil.Open(g.Repo)
+	return libfossil.Open(Repo)
 }
 
 // resolveRID resolves a version string to a rid.

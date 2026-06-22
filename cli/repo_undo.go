@@ -1,29 +1,53 @@
 package cli
 
-// RepoUndoCmd undoes the last checkout operation.
-type RepoUndoCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
+import (
+	"fmt"
 
-func (c *RepoUndoCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+	"github.com/spf13/cobra"
+)
+
+func newUndoCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "undo",
+		Short: "Undo last operation",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			if err := r.Undo(dir); err != nil {
+				return err
+			}
+			fmt.Println("undone")
+			return nil
+		},
 	}
-	defer r.Close()
-	return r.Undo(c.Dir)
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-// RepoRedoCmd re-applies the last undone operation.
-type RepoRedoCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoRedoCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newRedoCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "redo",
+		Short: "Redo undone operation",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			if err := r.Redo(dir); err != nil {
+				return err
+			}
+			fmt.Println("redone")
+			return nil
+		},
 	}
-	defer r.Close()
-	return r.Redo(c.Dir)
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }

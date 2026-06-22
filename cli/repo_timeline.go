@@ -4,36 +4,42 @@ import (
 	"fmt"
 
 	libfossil "github.com/danmestas/libfossil"
+	"github.com/spf13/cobra"
 )
 
-// RepoTimelineCmd shows repository timeline/history.
-type RepoTimelineCmd struct {
-	Limit int `short:"n" default:"20" help:"Number of entries"`
-}
+func newTimelineCommand() *cobra.Command {
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "timeline",
+		Short: "Show repository history",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-func (c *RepoTimelineCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+			tipRid, err := resolveRID(r, "")
+			if err != nil {
+				return err
+			}
 
-	tipRid, err := resolveRID(r, "")
-	if err != nil {
-		return err
-	}
+			entries, err := r.Timeline(libfossil.LogOpts{Start: tipRid, Limit: limit})
+			if err != nil {
+				return err
+			}
 
-	entries, err := r.Timeline(libfossil.LogOpts{Start: tipRid, Limit: c.Limit})
-	if err != nil {
-		return err
+			for _, e := range entries {
+				uuid := e.UUID
+				if len(uuid) > 10 {
+					uuid = uuid[:10]
+				}
+				fmt.Printf("%s  %s  %s  %s\n", uuid, e.Time.Format("2006-01-02 15:04"), e.User, e.Comment)
+			}
+			return nil
+		},
 	}
-
-	for _, e := range entries {
-		uuid := e.UUID
-		if len(uuid) > 10 {
-			uuid = uuid[:10]
-		}
-		fmt.Printf("%s  %s  %s  %s\n", uuid, e.Time.Format("2006-01-02 15:04"), e.User, e.Comment)
-	}
-	return nil
+	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "Number of entries")
+	return cmd
 }

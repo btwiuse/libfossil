@@ -7,58 +7,71 @@ import (
 
 	libfossil "github.com/danmestas/libfossil"
 	"github.com/danmestas/libfossil/internal/auth"
+	"github.com/spf13/cobra"
 )
 
-// RepoCloneCmd clones a remote Fossil repository.
-type RepoCloneCmd struct {
-	URL    string `arg:"" optional:"" help:"Remote Fossil server URL"`
-	Path   string `arg:"" optional:"" help:"Local path for new repository file"`
-	User   string `short:"u" help:"Username for clone auth"`
-	Pass   string `short:"p" help:"Password for clone auth"`
-	Invite string `help:"Invite token (from fossil invite)"`
-}
+func newCloneCommand() *cobra.Command {
+	var user, pass, invite string
+	cmd := &cobra.Command{
+		Use:   "clone [url] [path]",
+		Short: "Clone a remote repository",
+		Args:  cobra.RangeArgs(0, 2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			url := ""
+			path := ""
+			switch len(args) {
+			case 2:
+				url, path = args[0], args[1]
+			case 1:
+				url = args[0]
+			}
 
-func (c *RepoCloneCmd) Run(g *Globals) error {
-	if c.Invite != "" {
-		token, err := auth.DecodeInviteToken(c.Invite)
-		if err != nil {
-			return fmt.Errorf("invalid invite token: %w", err)
-		}
-		if c.URL == "" {
-			c.URL = token.URL
-		}
-		if c.User == "" {
-			c.User = token.Login
-		}
-		if c.Pass == "" {
-			c.Pass = token.Password
-		}
-	}
-	if c.URL == "" {
-		return fmt.Errorf("URL required (provide as argument or via --invite token)")
-	}
-	if c.Path == "" {
-		return fmt.Errorf("path required")
-	}
+			if invite != "" {
+				token, err := auth.DecodeInviteToken(invite)
+				if err != nil {
+					return fmt.Errorf("invalid invite token: %w", err)
+				}
+				if url == "" {
+					url = token.URL
+				}
+				if user == "" {
+					user = token.Login
+				}
+				if pass == "" {
+					pass = token.Password
+				}
+			}
+			if url == "" {
+				return fmt.Errorf("URL required (provide as argument or via --invite token)")
+			}
+			if path == "" {
+				return fmt.Errorf("path required")
+			}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
 
-	transport := libfossil.NewHTTPTransport(c.URL)
-	opts := libfossil.CloneOpts{
-		User:     c.User,
-		Password: c.Pass,
+			transport := libfossil.NewHTTPTransport(url)
+			opts := libfossil.CloneOpts{
+				User:     user,
+				Password: pass,
+			}
+
+			r, result, err := libfossil.Clone(ctx, path, transport, opts)
+			if err != nil {
+				return fmt.Errorf("clone failed: %w", err)
+			}
+			defer r.Close()
+
+			fmt.Printf("Cloned into %s\n", path)
+			fmt.Printf("  Rounds:       %d\n", result.Rounds)
+			fmt.Printf("  Blobs:        %d\n", result.BlobsRecvd)
+			fmt.Printf("  Project-code: %s\n", result.ProjectCode)
+			return nil
+		},
 	}
-
-	r, result, err := libfossil.Clone(ctx, c.Path, transport, opts)
-	if err != nil {
-		return fmt.Errorf("clone failed: %w", err)
-	}
-	defer r.Close()
-
-	fmt.Printf("Cloned into %s\n", c.Path)
-	fmt.Printf("  Rounds:       %d\n", result.Rounds)
-	fmt.Printf("  Blobs:        %d\n", result.BlobsRecvd)
-	fmt.Printf("  Project-code: %s\n", result.ProjectCode)
-	return nil
+	cmd.Flags().StringVarP(&user, "user", "u", "", "Username for clone auth")
+	cmd.Flags().StringVarP(&pass, "pass", "p", "", "Password for clone auth")
+	cmd.Flags().StringVar(&invite, "invite", "", "Invite token (from fossil invite)")
+	return cmd
 }

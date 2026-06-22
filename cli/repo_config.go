@@ -1,75 +1,95 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-// RepoConfigCmd groups configuration operations.
-type RepoConfigCmd struct {
-	Ls  RepoConfigLsCmd  `cmd:"" help:"List all config entries"`
-	Get RepoConfigGetCmd `cmd:"" help:"Get a config value"`
-	Set RepoConfigSetCmd `cmd:"" help:"Set a config value"`
+	"github.com/spf13/cobra"
+)
+
+func newConfigCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Repository configuration",
+	}
+	cmd.AddCommand(newConfigLsCommand())
+	cmd.AddCommand(newConfigGetCommand())
+	cmd.AddCommand(newConfigSetCommand())
+	return cmd
 }
 
-// RepoConfigLsCmd lists all config entries.
-type RepoConfigLsCmd struct{}
+func newConfigLsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ls",
+		Short: "List all config entries",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-func (c *RepoConfigLsCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+			db := r.Inner().DB()
+			rows, err := db.Query("SELECT name, value FROM config ORDER BY name")
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
 
-	db := r.Inner().DB()
-	rows, err := db.Query("SELECT name, value FROM config ORDER BY name")
-	if err != nil {
-		return err
+			for rows.Next() {
+				var name, value string
+				rows.Scan(&name, &value)
+				fmt.Printf("%-20s %s\n", name, value)
+			}
+			return rows.Err()
+		},
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var name, value string
-		rows.Scan(&name, &value)
-		fmt.Printf("%-20s %s\n", name, value)
-	}
-	return rows.Err()
+	return cmd
 }
 
-// RepoConfigGetCmd gets a single config value.
-type RepoConfigGetCmd struct {
-	Key string `arg:"" help:"Config key to get"`
+func newConfigGetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get <key>",
+		Short: "Get a config value",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			key := args[0]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			val, err := r.Config(key)
+			if err != nil {
+				return fmt.Errorf("config key %q not found", key)
+			}
+			fmt.Println(val)
+			return nil
+		},
+	}
+	return cmd
 }
 
-func (c *RepoConfigGetCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+func newConfigSetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set <key> <value>",
+		Short: "Set a config value",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			key, value := args[0], args[1]
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
 
-	val, err := r.Config(c.Key)
-	if err != nil {
-		return fmt.Errorf("config key %q not found", c.Key)
+			if err := r.SetConfig(key, value); err != nil {
+				return err
+			}
+			fmt.Printf("%s = %s\n", key, value)
+			return nil
+		},
 	}
-	fmt.Println(val)
-	return nil
-}
-
-// RepoConfigSetCmd sets a config value.
-type RepoConfigSetCmd struct {
-	Key   string `arg:"" help:"Config key"`
-	Value string `arg:"" help:"Config value"`
-}
-
-func (c *RepoConfigSetCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	if err := r.SetConfig(c.Key, c.Value); err != nil {
-		return err
-	}
-	fmt.Printf("%s = %s\n", c.Key, c.Value)
-	return nil
+	return cmd
 }

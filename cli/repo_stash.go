@@ -1,107 +1,148 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
 
-// RepoStashCmd groups stash operations.
-type RepoStashCmd struct {
-	Save  RepoStashSaveCmd  `cmd:"" help:"Stash working changes"`
-	Pop   RepoStashPopCmd   `cmd:"" help:"Apply top stash and drop it"`
-	Apply RepoStashApplyCmd `cmd:"" help:"Apply stash without dropping"`
-	Ls    RepoStashLsCmd    `cmd:"" help:"List stash entries"`
-	Drop  RepoStashDropCmd  `cmd:"" help:"Remove stash entry"`
-	Clear RepoStashClearCmd `cmd:"" help:"Remove all stash entries"`
-}
+	"github.com/spf13/cobra"
+)
 
-// RepoStashSaveCmd saves working changes to the stash.
-type RepoStashSaveCmd struct {
-	Message string `short:"m" help:"Stash message" default:""`
-	Dir     string `short:"d" help:"Checkout directory" default:"."`
-}
-
-func (c *RepoStashSaveCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newStashCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stash",
+		Short: "Stash working changes",
 	}
-	defer r.Close()
-	return r.StashSave(c.Dir, c.Message)
+	cmd.AddCommand(newStashSaveCommand())
+	cmd.AddCommand(newStashPopCommand())
+	cmd.AddCommand(newStashApplyCommand())
+	cmd.AddCommand(newStashLsCommand())
+	cmd.AddCommand(newStashDropCommand())
+	cmd.AddCommand(newStashClearCommand())
+	return cmd
 }
 
-// RepoStashPopCmd pops the top stash entry.
-type RepoStashPopCmd struct {
-	Dir string `short:"d" help:"Checkout directory" default:"."`
+func newStashSaveCommand() *cobra.Command {
+	var message, dir string
+	cmd := &cobra.Command{
+		Use:   "save",
+		Short: "Stash working changes",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			return r.StashSave(dir, message)
+		},
+	}
+	cmd.Flags().StringVarP(&message, "message", "m", "", "Stash message")
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-func (c *RepoStashPopCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newStashPopCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "pop",
+		Short: "Apply top stash and drop it",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			return r.StashPop(dir)
+		},
 	}
-	defer r.Close()
-	return r.StashPop(c.Dir)
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-// RepoStashApplyCmd applies a stash entry without removing it.
-type RepoStashApplyCmd struct {
-	ID  int64  `arg:"" optional:"" help:"Stash ID to apply (default: latest)"`
-	Dir string `short:"d" help:"Checkout directory" default:"."`
+func newStashApplyCommand() *cobra.Command {
+	var dir string
+	cmd := &cobra.Command{
+		Use:   "apply [id]",
+		Short: "Apply stash without dropping",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			var id int64
+			if len(args) > 0 {
+				fmt.Sscanf(args[0], "%d", &id)
+			}
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			return r.StashApply(dir, id)
+		},
+	}
+	cmd.Flags().StringVarP(&dir, "dir", "d", ".", "Checkout directory")
+	return cmd
 }
 
-func (c *RepoStashApplyCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newStashLsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ls",
+		Short: "List stash entries",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			entries, err := r.StashList()
+			if err != nil {
+				return err
+			}
+			if len(entries) == 0 {
+				fmt.Println("no stash entries")
+				return nil
+			}
+			for _, e := range entries {
+				fmt.Printf("%3d: %s  %s\n", e.ID, e.Time, e.Comment)
+			}
+			return nil
+		},
 	}
-	defer r.Close()
-	return r.StashApply(c.Dir, c.ID)
+	return cmd
 }
 
-// RepoStashLsCmd lists stash entries.
-type RepoStashLsCmd struct{}
-
-func (c *RepoStashLsCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newStashDropCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "drop <id>",
+		Short: "Remove stash entry",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			var id int64
+			fmt.Sscanf(args[0], "%d", &id)
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			return r.StashDrop(id)
+		},
 	}
-	defer r.Close()
-
-	entries, err := r.StashList()
-	if err != nil {
-		return err
-	}
-	if len(entries) == 0 {
-		fmt.Println("no stash entries")
-		return nil
-	}
-	for _, e := range entries {
-		fmt.Printf("%3d: %s  %s\n", e.ID, e.Time, e.Comment)
-	}
-	return nil
+	return cmd
 }
 
-// RepoStashDropCmd removes a stash entry by ID.
-type RepoStashDropCmd struct {
-	ID int64 `arg:"" required:"" help:"Stash ID to drop"`
-}
-
-func (c *RepoStashDropCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
+func newStashClearCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Remove all stash entries",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			r, err := OpenRepo()
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			return r.StashClear()
+		},
 	}
-	defer r.Close()
-	return r.StashDrop(c.ID)
-}
-
-// RepoStashClearCmd removes all stash entries.
-type RepoStashClearCmd struct{}
-
-func (c *RepoStashClearCmd) Run(g *Globals) error {
-	r, err := g.OpenRepo()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	return r.StashClear()
+	return cmd
 }
