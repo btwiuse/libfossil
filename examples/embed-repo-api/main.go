@@ -12,7 +12,7 @@ import (
 	"github.com/danmestas/libfossil"
 	// Blank-import the default pure-Go SQLite driver. libfossil requires
 	// at least one driver to be registered; this one uses modernc.org/sqlite.
-	_ "github.com/danmestas/libfossil/db/driver/modernc"
+	_ "github.com/btwiuse/libfossil/db/driver/ncruces"
 )
 
 func main() {
