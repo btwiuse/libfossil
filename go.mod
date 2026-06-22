@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/alecthomas/kong v1.15.0
-	github.com/btwiuse/libfossil/db/driver/ncruces v0.6.4
+	github.com/btwiuse/libfossil/db/driver/ncruces v0.6.5
 	github.com/danmestas/libfossil/db/driver/modernc v0.1.0
 	github.com/danmestas/libfossil/db/driver/ncruces v0.1.0
 	github.com/hexops/gotextdiff v1.0.3

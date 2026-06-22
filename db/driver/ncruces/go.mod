@@ -6,7 +6,7 @@ require (
 	github.com/danmestas/go-sqlite3-opfs v0.2.0
 	github.com/danmestas/libfossil v0.1.0
 	github.com/ncruces/go-sqlite3 v0.33.0
-	github.com/ozanturksever/sqlite3-vfs-idb v0.0.1
+	github.com/justwasm/sqlite3-vfs-idb v0.0.7
 )
 
 require (

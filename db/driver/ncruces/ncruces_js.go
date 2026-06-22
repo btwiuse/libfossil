@@ -8,7 +8,7 @@ import (
 
 	"github.com/danmestas/libfossil/db"
 	_ "github.com/danmestas/go-sqlite3-opfs"
-	_ "github.com/ozanturksever/sqlite3-vfs-idb"
+	_ "github.com/justwasm/sqlite3-vfs-idb"
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
