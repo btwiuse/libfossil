@@ -17,6 +17,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newNewCommand())
 	root.AddCommand(newCloneCommand())
 	root.AddCommand(newServerCommand())
+	root.AddCommand(newUICommand())
 	root.AddCommand(newPushCommand())
 	root.AddCommand(NewCiCommand())
 	root.AddCommand(newCoCommand())
