@@ -51,6 +51,7 @@ func (s *session) buildRequest(cycle int) (*xfer.Message, error) {
 		_ = s.repo.DB().QueryRow(
 			"SELECT value FROM config WHERE name='project-code'",
 		).Scan(&projCode)
+		s.opts.ProjectCode = projCode
 	}
 	// Fossil C also reads a cached remote server-code from the local repo
 	// config ('server-code' written by a prior pull). Fall back to that when
